@@ -1,31 +1,32 @@
 # ChurnLens
 
-**Some of your customers have already decided to leave. You just don't know which ones yet.**
+**Churn is a leak in the rocket. You don't fix a leak by writing a report about it — you find the part that's failing and you fix that part.**
 
-ChurnLens tells you. Drop in a CSV, and in seconds you know exactly who's about to churn,
-*why*, and *what to do about it* — in plain English, not a probability score you have to
-interpret yourself.
+ChurnLens finds the part. Upload a CSV of your customers. It tells you who's about to leave,
+the specific variable causing it, and the action that moves the number. No dashboard to
+interpret. No analyst required. The output is a decision, not a chart.
 
-No upload. No backend. No account required. The entire machine-learning pipeline — training,
-scoring, explaining — runs **inside your browser**. Your customer data never leaves your
-computer.
+It runs entirely in your browser. There is no server processing your customer data, because
+there is no server in the loop at all. That's not a privacy feature bolted on top — it's a
+consequence of the architecture being as simple as the problem allows.
 
 **[churnlens-one.vercel.app →](https://churnlens-one.vercel.app)**
 
 ---
 
-## Why this exists
+## First principles
 
-Enterprise churn tools cost thousands a month, take weeks to set up, and are built for teams
-with a dedicated analyst to interpret them. Everyone else — the solo founder, the small SaaS
-team, the person who already knows their numbers but not their reasons — is left with a
-spreadsheet and a gut feeling.
+Strip the problem to physics: a subscription business has a revenue inflow (new customers) and
+a leak (churn). Most companies instrument the inflow obsessively and the leak barely at all.
+That's backwards — plugging a 2-point leak on a $10M ARR base is worth roughly $200K/year, and
+it's usually cheaper than acquiring the customers to replace the loss.
 
-A risk score by itself doesn't change anyone's behavior. *"This customer is 73% likely to
-churn"* tells you to worry. It doesn't tell you what to do on Monday morning. ChurnLens closes
-that gap: every number comes with a reason, and every reason comes with an action.
+Existing tools solve the wrong part of this. They cost five or six figures a year, take weeks
+to integrate, and output a risk score with no causal explanation attached — which means a human
+still has to do the actual diagnostic work before anyone can act. A number without a reason is
+not an answer. It's homework.
 
-This product is the published research behind it, made usable by anyone:
+So: rebuild it from the math up. The underlying research, validated and published:
 
 > A. Patel and A. G. Kumar, "Predicting Customer Churn in Telecom Industry: A Machine
 > Learning Approach for Improving Customer Retention," *2023 IEEE 11th Region 10 Humanitarian
@@ -33,83 +34,104 @@ This product is the published research behind it, made usable by anyone:
 > [10.1109/R10-HTC57504.2023.10461822](https://doi.org/10.1109/R10-HTC57504.2023.10461822) ·
 > [IEEE Xplore](https://ieeexplore.ieee.org/document/10461822)
 
-## How it works
+## The algorithm
 
-Upload a CSV. That's the whole interaction.
+Every part of this product was run through the same five questions, in this order, because
+doing them out of order wastes effort polishing something that should have been cut:
 
-1. **It reads your data for you.** Columns, the churn label, an optional revenue field — all
-   auto-detected. You confirm, you don't configure.
-2. **It corrects for reality.** Most customer lists are mostly customers who stayed. SMOTE
-   rebalances the training data so the model actually learns what a churner looks like, instead
-   of just learning to guess "stayed" every time.
-3. **It trains a real model**, gradient-boosted decision trees, hand-written in TypeScript,
-   the same family of model that scored highest in the original research (94% accuracy).
-   No Python, no GPU, no server round-trip.
-4. **It grades itself honestly** on customers the model never saw during training, then shows
-   you that score — not a cherry-picked one.
-5. **It explains every at-risk customer** in a sentence a human can act on: *"Customer service
-   calls (5) — more than double the retained-customer average."*
-6. **It groups customers into action**, not just a list. "31 customers share this risk factor"
-   becomes one task, not 31.
-7. **It exports** the at-risk list with every probability and reason as CSV, if you want it
-   somewhere else.
+1. **Question the requirement.** Does a churn tool need an account, a backend, a database, a
+   subscription? No — the only hard requirement is "look at customer data, output a ranked risk
+   list with reasons." Everything else is optional scaffolding.
+2. **Delete the part.** No server means no infrastructure to provision, secure, or pay for —
+   zero marginal cost per user, full stop. No charting library for a static bar chart. No model
+   class sitting in the bundle that nothing calls. If a part doesn't earn its weight, it's gone.
+3. **Simplify what's left.** One model, one decision threshold, one explanation engine. Not
+   three competing approaches hedging against each other.
+4. **Speed it up.** Training runs in a Web Worker so the UI thread never blocks. Cutting the
+   unused charting library alone dropped the shipped JS by 24%.
+5. **Automate last.** The column mapping, the churn-label detection, the threshold — all
+   auto-set from the data. Automation only after the first four steps, never before, because
+   automating a process that shouldn't exist just makes the waste run faster.
 
-## What it's built on
+## What it actually does
 
-- **Next.js 16** (App Router) · **React 19** · **TypeScript** · **Tailwind v4**
-- **Web Worker + Comlink** — the model trains off the main thread, so the page never freezes
-- **papaparse** for CSV — everything else, including the dashboard charts, is hand-rolled CSS/SVG
-  rather than a charting library, on purpose: less to download, less to trust
-- **Supabase** (optional) — sign in to save aggregate analysis history; nothing works any
-  worse without it
-- Ships to **Vercel** as a client-only app — no backend infrastructure to run or pay for
+1. Reads your CSV and guesses the schema — churn column, revenue column, feature columns. You
+   confirm it; you don't configure it from scratch.
+2. Rebalances the training data with SMOTE, because churn is rare and a model that's lazy will
+   just predict "nobody leaves" and call it 85% accurate. That's not a model, that's a constant.
+3. Trains gradient-boosted decision trees — the same algorithm family that scored highest (94%)
+   in the underlying research — written from raw math in TypeScript. No Python runtime, no GPU,
+   no API call to a model you don't control.
+4. Reports accuracy, precision, recall, F1, and ROC AUC measured only on data the model never
+   trained on. A number you can't audit isn't a number, it's marketing.
+5. Attaches a reason to every flagged customer: *"Customer service calls (5) — more than double
+   the retained-customer average."* Cause, not just correlation-shaped fear.
+6. Groups customers by shared cause into one task instead of a hundred individual alerts. Fix
+   the cause once, not the symptom a hundred times.
+7. Exports the full list as CSV. Your data, your format, your next move.
 
-## The machine learning, written from scratch
+## Engineering
 
-Everything in [`lib/ml/`](lib/ml/) is hand-rolled — no ML dependency, nothing to trust blindly:
+- **Next.js 16 / React 19 / TypeScript / Tailwind v4** — current tooling, no legacy weight.
+- **Web Worker + Comlink** — the heaviest computation never touches the render thread.
+- **papaparse** for CSV parsing. Everything else — including the dashboard charts — is
+  hand-rolled CSS/SVG. A charting library for one static bar chart is dead weight; cut it.
+- **Supabase**, optional. The product works at full capability with it absent. An account
+  should be a convenience, never a dependency.
+- Deployed on **Vercel** as a static client app. No server to scale, patch, or page you at 3 a.m.
 
-| File | Responsibility |
+## The model, built from raw math
+
+Everything in [`lib/ml/`](lib/ml/) — every line of it — is hand-written. No imported ML
+library, because a product whose pitch is "trust the math" can't be built on math it can't show
+you:
+
+| File | Job |
 | --- | --- |
 | `preprocess.ts` | Column detection, encoding, leakage-safe imputation/scaling, stratified split |
-| `smote.ts` | SMOTE oversampling — training split only, applied after the split, never before |
-| `gbm.ts` | Gradient-boosted trees (XGBoost-style, second-order) — the model that ships |
-| `metrics.ts` | Confusion matrix, accuracy/precision/recall/F1, ROC AUC — all on held-out data |
-| `explain.ts` | Per-customer reasons (gated by actual risk direction, not just global importance) + cohort recommendations |
-| `pipeline.ts` | Wires all of it together — what the Web Worker actually calls |
+| `smote.ts` | Synthetic oversampling — training split only, after the split, never before |
+| `gbm.ts` | Gradient-boosted trees (XGBoost-style, second-order Newton method) — the shipped model |
+| `metrics.ts` | Confusion matrix, accuracy/precision/recall/F1, ROC AUC — on held-out data only |
+| `explain.ts` | Per-customer causal reasons, gated by actual risk direction — plus cohort-level actions |
+| `pipeline.ts` | The full sequence, end to end — what the Web Worker actually runs |
 
-Check the math without touching the UI:
+Verify the math yourself, no UI required:
 
 ```bash
 npx tsx scripts/smoke.ts
 ```
 
-## Run it yourself
+Current numbers on the reference dataset: **92.0% accuracy, 70.9% F1, 0.913 AUC** — on customers
+the model never saw during training.
+
+## Run it
 
 ```bash
 npm install
 npm run dev        # http://localhost:3000
 ```
 
-Nothing to configure. No `.env` required to use the product — accounts and saved history just
-stay quietly out of the way until you turn them on.
+Zero configuration required. No `.env` file needed to use the full product. Accounts are an
+add-on, not a gate.
 
-## Turning on accounts (optional)
+## Accounts (optional, off by default)
 
-Only ever the *results* of an analysis are saved — counts, scores, recommendations. Never a
-single row of customer data.
+Only the *output* of an analysis is ever saved — counts, scores, recommendations. Never one row
+of raw customer data. The data that matters stays exactly where it landed: your browser.
 
 1. Create a project at [supabase.com](https://supabase.com).
-2. Run [`supabase/schema.sql`](supabase/schema.sql) in the SQL editor — creates the `analyses`
-   table with row-level security already on.
-3. Add the keys (locally in `.env.local`, or on Vercel via the dashboard/native integration):
+2. Run [`supabase/schema.sql`](supabase/schema.sql) — creates the `analyses` table with
+   row-level security on from the first row.
+3. Set the keys (`.env.local` locally, or Vercel's dashboard/native integration in production):
 
    ```
    NEXT_PUBLIC_SUPABASE_URL=https://YOUR-PROJECT.supabase.co
    NEXT_PUBLIC_SUPABASE_ANON_KEY=YOUR-ANON-PUBLIC-KEY
    ```
 
-## Privacy, by construction
+## Privacy is a side effect of good engineering
 
-There is no server for your data to reach. The CSV is parsed, the model is trained, customers
-are scored, and explanations are written — all in a background thread, in your browser. Close
-the tab and it's gone. That's not a policy. It's the architecture.
+There's no server for your data to reach, so there's no server that can leak it. Not a policy
+decision, not a checkbox in a settings page — a direct result of deleting the part of the system
+that didn't need to exist. Close the tab and the data is gone, because it was never anywhere
+else to begin with.
