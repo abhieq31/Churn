@@ -4,7 +4,7 @@
 //   1. split (stratified)        -> train / test indices
 //   2. fit encoder on TRAIN only -> no leakage of test statistics
 //   3. SMOTE on TRAIN only       -> balance classes without touching test
-//   4. train forest on balanced train
+//   4. train the model on balanced train
 //   5. evaluate on untouched TEST -> honest metrics
 //   6. score active customers     -> actionable at-risk list
 //   7. explain                    -> per-customer reasons + recommendations
@@ -17,7 +17,7 @@ import {
 } from "./explain";
 import { DEFAULT_GBM_OPTIONS, GradientBoosting } from "./gbm";
 import { evaluate } from "./metrics";
-import type { ChurnModel } from "./model";
+import type { ChurnModel } from "./types";
 import {
   analyzeColumns,
   extractLabels,

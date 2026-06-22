@@ -1,86 +1,115 @@
 # ChurnLens
 
-**Predict which customers will churn, understand *why*, and know *what to do* — all in your browser.**
+**Some of your customers have already decided to leave. You just don't know which ones yet.**
 
-ChurnLens turns peer-reviewed customer-churn research into a self-serve product. Drop in
-a CSV of your customers and, in seconds, you get a ranked list of at-risk customers, a
-plain-English reason behind each one, and prioritized retention recommendations. The entire
-machine-learning pipeline runs **client-side in your browser** — your customer data is never
-uploaded.
+ChurnLens tells you. Drop in a CSV, and in seconds you know exactly who's about to churn,
+*why*, and *what to do about it* — in plain English, not a probability score you have to
+interpret yourself.
 
-Built on:
+No upload. No backend. No account required. The entire machine-learning pipeline — training,
+scoring, explaining — runs **inside your browser**. Your customer data never leaves your
+computer.
 
-> A. Patel and A. G. Kumar, “Predicting Customer Churn in Telecom Industry: A Machine
-> Learning Approach for Improving Customer Retention,” *2023 IEEE 11th Region 10 Humanitarian
+**[churnlens-one.vercel.app →](https://churnlens-one.vercel.app)**
+
+---
+
+## Why this exists
+
+Enterprise churn tools cost thousands a month, take weeks to set up, and are built for teams
+with a dedicated analyst to interpret them. Everyone else — the solo founder, the small SaaS
+team, the person who already knows their numbers but not their reasons — is left with a
+spreadsheet and a gut feeling.
+
+A risk score by itself doesn't change anyone's behavior. *"This customer is 73% likely to
+churn"* tells you to worry. It doesn't tell you what to do on Monday morning. ChurnLens closes
+that gap: every number comes with a reason, and every reason comes with an action.
+
+This product is the published research behind it, made usable by anyone:
+
+> A. Patel and A. G. Kumar, "Predicting Customer Churn in Telecom Industry: A Machine
+> Learning Approach for Improving Customer Retention," *2023 IEEE 11th Region 10 Humanitarian
 > Technology Conference (R10-HTC)*, 2023. DOI:
 > [10.1109/R10-HTC57504.2023.10461822](https://doi.org/10.1109/R10-HTC57504.2023.10461822) ·
 > [IEEE Xplore](https://ieeexplore.ieee.org/document/10461822)
 
-## What it does
+## How it works
 
-1. **Auto-detects your columns** — types, the churn label, and an optional revenue/MRR field.
-2. **Balances the classes with SMOTE** so the model learns rare churners properly.
-3. **Trains a Random Forest** (hand-written in TypeScript, no Python, no server).
-4. **Scores honestly** on a held-out test set — accuracy, precision, recall, F1, confusion matrix.
-5. **Explains every at-risk customer** with the specific factors driving their risk.
-6. **Recommends actions** by clustering at-risk customers into cohorts.
-7. **Exports** the at-risk list (with probabilities + reasons) as CSV.
+Upload a CSV. That's the whole interaction.
 
-## Tech stack
+1. **It reads your data for you.** Columns, the churn label, an optional revenue field — all
+   auto-detected. You confirm, you don't configure.
+2. **It corrects for reality.** Most customer lists are mostly customers who stayed. SMOTE
+   rebalances the training data so the model actually learns what a churner looks like, instead
+   of just learning to guess "stayed" every time.
+3. **It trains a real model**, gradient-boosted decision trees, hand-written in TypeScript,
+   the same family of model that scored highest in the original research (94% accuracy).
+   No Python, no GPU, no server round-trip.
+4. **It grades itself honestly** on customers the model never saw during training, then shows
+   you that score — not a cherry-picked one.
+5. **It explains every at-risk customer** in a sentence a human can act on: *"Customer service
+   calls (5) — more than double the retained-customer average."*
+6. **It groups customers into action**, not just a list. "31 customers share this risk factor"
+   becomes one task, not 31.
+7. **It exports** the at-risk list with every probability and reason as CSV, if you want it
+   somewhere else.
 
-- **Next.js 16** (App Router) + **React 19** + **TypeScript** + **Tailwind v4**
-- **Web Worker + Comlink** — the ML pipeline runs off the main thread so the UI never freezes
-- **papaparse** (CSV), **recharts** (charts)
-- **Supabase** (optional) — accounts + saved analysis history
-- Deploys to **Vercel** as a static/client app (no backend required)
+## What it's built on
 
-## Machine learning, from scratch
+- **Next.js 16** (App Router) · **React 19** · **TypeScript** · **Tailwind v4**
+- **Web Worker + Comlink** — the model trains off the main thread, so the page never freezes
+- **papaparse** for CSV — everything else, including the dashboard charts, is hand-rolled CSS/SVG
+  rather than a charting library, on purpose: less to download, less to trust
+- **Supabase** (optional) — sign in to save aggregate analysis history; nothing works any
+  worse without it
+- Ships to **Vercel** as a client-only app — no backend infrastructure to run or pay for
 
-All ML lives in [`lib/ml/`](lib/ml/) with **no ML dependencies**:
+## The machine learning, written from scratch
+
+Everything in [`lib/ml/`](lib/ml/) is hand-rolled — no ML dependency, nothing to trust blindly:
 
 | File | Responsibility |
 | --- | --- |
 | `preprocess.ts` | Column detection, encoding, leakage-safe imputation/scaling, stratified split |
-| `smote.ts` | SMOTE oversampling (training split only, after the split) |
-| `gbm.ts` | Gradient-boosted trees (XGBoost-style, second-order) — the shipped model |
-| `model.ts` | CART decision tree + bagged Random Forest (alternative) + shared `ChurnModel` interface |
-| `metrics.ts` | Confusion matrix, accuracy/precision/recall/F1 + ROC AUC on the held-out test set |
-| `explain.ts` | Per-customer reasons (risk-direction gated) + cohort recommendations |
-| `pipeline.ts` | Orchestrates the whole flow; this is what the Web Worker calls |
+| `smote.ts` | SMOTE oversampling — training split only, applied after the split, never before |
+| `gbm.ts` | Gradient-boosted trees (XGBoost-style, second-order) — the model that ships |
+| `metrics.ts` | Confusion matrix, accuracy/precision/recall/F1, ROC AUC — all on held-out data |
+| `explain.ts` | Per-customer reasons (gated by actual risk direction, not just global importance) + cohort recommendations |
+| `pipeline.ts` | Wires all of it together — what the Web Worker actually calls |
 
-Validate the core without the UI:
+Check the math without touching the UI:
 
 ```bash
 npx tsx scripts/smoke.ts
 ```
 
-## Local development
+## Run it yourself
 
 ```bash
 npm install
 npm run dev        # http://localhost:3000
 ```
 
-The app is fully functional with **no configuration** — accounts/history just stay hidden.
+Nothing to configure. No `.env` required to use the product — accounts and saved history just
+stay quietly out of the way until you turn them on.
 
-## Optional: enable accounts + saved history (Supabase)
+## Turning on accounts (optional)
 
-Only **aggregate** results are ever saved (counts, model scores, recommendations) — raw
-customer rows never leave the browser.
+Only ever the *results* of an analysis are saved — counts, scores, recommendations. Never a
+single row of customer data.
 
 1. Create a project at [supabase.com](https://supabase.com).
-2. Run [`supabase/schema.sql`](supabase/schema.sql) in the Supabase SQL editor (creates the
-   `analyses` table with row-level security).
-3. Add env vars (locally in `.env.local`, on Vercel via the dashboard or the native Supabase
-   integration):
+2. Run [`supabase/schema.sql`](supabase/schema.sql) in the SQL editor — creates the `analyses`
+   table with row-level security already on.
+3. Add the keys (locally in `.env.local`, or on Vercel via the dashboard/native integration):
 
    ```
    NEXT_PUBLIC_SUPABASE_URL=https://YOUR-PROJECT.supabase.co
    NEXT_PUBLIC_SUPABASE_ANON_KEY=YOUR-ANON-PUBLIC-KEY
    ```
 
-## Privacy
+## Privacy, by construction
 
-Your CSV is parsed, the model is trained, customers are scored, and explanations are
-generated entirely in your browser (in a background Web Worker). Nothing is uploaded. The
-dataset lives only in memory and is gone when you close the tab.
+There is no server for your data to reach. The CSV is parsed, the model is trained, customers
+are scored, and explanations are written — all in a background thread, in your browser. Close
+the tab and it's gone. That's not a policy. It's the architecture.

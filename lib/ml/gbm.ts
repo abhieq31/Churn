@@ -8,7 +8,7 @@
 // and leaf weight w = -G / (H + λ).
 
 import { Rng } from "./random";
-import type { ChurnModel } from "./model";
+import type { ChurnModel } from "./types";
 
 export interface GBMOptions {
   rounds: number;

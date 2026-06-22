@@ -1,21 +1,12 @@
-"use client";
-
-import {
-  Bar,
-  BarChart,
-  Cell,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
 import type { ColumnImportance } from "@/lib/ml/types";
 import { Card } from "@/components/ui/primitives";
 
 export function ImportanceChart({ importance }: { importance: ColumnImportance[] }) {
-  const data = importance
-    .slice(0, 8)
-    .map((c) => ({ name: c.column, value: +(c.importance * 100).toFixed(1) }));
+  const data = importance.slice(0, 8).map((c) => ({
+    name: c.column,
+    pct: +(c.importance * 100).toFixed(1),
+  }));
+  const max = Math.max(...data.map((d) => d.pct), 1);
 
   return (
     <Card className="p-6">
@@ -23,38 +14,21 @@ export function ImportanceChart({ importance }: { importance: ColumnImportance[]
       <p className="mt-1 text-sm text-zinc-500">
         Relative importance of each factor to the model&apos;s predictions.
       </p>
-      <div className="mt-4 h-72 w-full">
-        <ResponsiveContainer width="100%" height="100%">
-          <BarChart
-            data={data}
-            layout="vertical"
-            margin={{ top: 0, right: 24, bottom: 0, left: 8 }}
-          >
-            <XAxis type="number" hide />
-            <YAxis
-              type="category"
-              dataKey="name"
-              width={150}
-              tick={{ fontSize: 12, fill: "#52525b" }}
-              tickLine={false}
-              axisLine={false}
-            />
-            <Tooltip
-              cursor={{ fill: "rgba(99,102,241,0.06)" }}
-              formatter={(v) => [`${v}%`, "Importance"]}
-              contentStyle={{
-                borderRadius: 12,
-                border: "1px solid #e4e4e7",
-                fontSize: 13,
-              }}
-            />
-            <Bar dataKey="value" radius={[0, 6, 6, 0]} barSize={18}>
-              {data.map((_, i) => (
-                <Cell key={i} fill={i === 0 ? "#d0441f" : "#cabfb0"} />
-              ))}
-            </Bar>
-          </BarChart>
-        </ResponsiveContainer>
+      <div className="mt-5 space-y-3">
+        {data.map((d, i) => (
+          <div key={d.name}>
+            <div className="flex items-baseline justify-between gap-3">
+              <span className="truncate text-sm text-ink/70">{d.name}</span>
+              <span className="shrink-0 text-xs font-medium text-ink/45">{d.pct}%</span>
+            </div>
+            <div className="mt-1 h-2.5 overflow-hidden rounded-full bg-paper">
+              <div
+                className={`h-full rounded-full ${i === 0 ? "bg-brand-600" : "bg-ink/15"}`}
+                style={{ width: `${(d.pct / max) * 100}%` }}
+              />
+            </div>
+          </div>
+        ))}
       </div>
     </Card>
   );

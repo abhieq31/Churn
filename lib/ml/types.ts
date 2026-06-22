@@ -136,6 +136,15 @@ export interface AnalysisResult {
   generatedAt: string;
 }
 
+/** Common interface so the pipeline can train and score interchangeably. */
+export interface ChurnModel {
+  readonly name: string;
+  train(X: number[][], y: number[]): void;
+  predictProba(x: number[]): number;
+  predictProbaBatch(X: number[][]): number[];
+  featureImportances(): number[];
+}
+
 export type PipelineStage =
   | "preprocessing"
   | "balancing-classes"

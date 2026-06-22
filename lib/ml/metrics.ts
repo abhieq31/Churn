@@ -45,25 +45,6 @@ export function evaluate(
   return m;
 }
 
-/** F1 at a given threshold (used for automatic threshold/model selection). */
-export function f1At(yTrue: number[], probabilities: number[], threshold: number): number {
-  const yPred = probabilities.map((p) => (p >= threshold ? 1 : 0));
-  return metricsFrom(confusionMatrix(yTrue, yPred), yTrue.length).f1;
-}
-
-/** Scan thresholds and return the one maximising F1 (defaults to 0.5 if degenerate). */
-export function bestThresholdByF1(
-  yTrue: number[],
-  probabilities: number[],
-): { threshold: number; f1: number } {
-  let best = { threshold: 0.5, f1: f1At(yTrue, probabilities, 0.5) };
-  for (let t = 0.05; t <= 0.95; t += 0.01) {
-    const f1 = f1At(yTrue, probabilities, t);
-    if (f1 > best.f1) best = { threshold: +t.toFixed(2), f1 };
-  }
-  return best;
-}
-
 /**
  * ROC AUC via the rank (Mann–Whitney U) method, with tie-aware average ranks.
  * Matches the "Area Under Curve" column reported in the paper.
