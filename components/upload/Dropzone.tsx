@@ -5,6 +5,14 @@ import { parseCsvFile } from "@/lib/csv";
 import type { RawRow } from "@/lib/ml/types";
 import { cx } from "@/components/ui/primitives";
 
+// The whole pipeline (SMOTE's k-NN is ~O(n²) on the minority class, plus the
+// gradient-boosting matrix ops) runs synchronously in a single Web Worker on
+// the user's own machine. Past ~100k rows a typical laptop will lock up with no
+// feedback, so we refuse honestly up front rather than freezing the tab. This is
+// the real scaling ceiling for a client-side model — raise it only once streamed
+// /chunked training exists, not speculatively.
+const MAX_ROWS = 100_000;
+
 export function Dropzone({
   onParsed,
 }: {
@@ -29,6 +37,10 @@ export function Dropzone({
           setError("That file looks empty — no rows found.");
         } else if (errors.length > 0 && rows.length < 5) {
           setError(`Could not parse the file: ${errors[0]}`);
+        } else if (rows.length > MAX_ROWS) {
+          setError(
+            `That file has ${rows.length.toLocaleString()} rows. The model trains entirely in your browser, so it's capped at ${MAX_ROWS.toLocaleString()} rows — take a random sample of your customers and try again.`,
+          );
         } else {
           onParsed(rows, file.name);
         }
