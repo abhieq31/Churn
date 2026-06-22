@@ -47,7 +47,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       async signUp(email, password) {
         const supabase = getSupabaseBrowser();
         if (!supabase) return { error: "Accounts are not configured.", needsConfirm: false };
-        const { data, error } = await supabase.auth.signUp({ email, password });
+        const { data, error } = await supabase.auth.signUp({
+          email,
+          password,
+          options: { emailRedirectTo: window.location.origin },
+        });
         return {
           error: error?.message ?? null,
           needsConfirm: Boolean(data.user && !data.session),

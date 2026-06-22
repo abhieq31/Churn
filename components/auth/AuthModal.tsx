@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { createPortal } from "react-dom";
 import { useAuth } from "@/lib/supabase/AuthProvider";
 import { Button } from "@/components/ui/primitives";
 
@@ -31,7 +32,7 @@ export function AuthModal({ onClose }: { onClose: () => void }) {
     setBusy(false);
   }
 
-  return (
+  return createPortal(
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-ink/40 p-4 backdrop-blur-sm"
       onClick={onClose}
@@ -84,6 +85,7 @@ export function AuthModal({ onClose }: { onClose: () => void }) {
             : "Already have an account? Sign in"}
         </button>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
