@@ -96,14 +96,21 @@ export function ColumnMappingTable({
                 featureColumns: mapping.featureColumns.filter((c) => c !== v),
               })
             }
-            options={allColumns.map((c) => ({ value: c, label: c }))}
+            options={[
+              ...(mapping.churnColumn ? [] : [{ value: "", label: "— choose a column —" }]),
+              ...allColumns.map((c) => ({ value: c, label: c })),
+            ]}
           />
           <Select
             label="“Churned” value"
             hint="which value means they left"
             value={mapping.churnPositiveValue}
             onChange={(v) => onChange({ ...mapping, churnPositiveValue: v })}
-            options={churnValues.map((c) => ({ value: c, label: c }))}
+            options={
+              churnValues.length > 0
+                ? churnValues.map((c) => ({ value: c, label: c }))
+                : [{ value: "", label: "— pick a churn column first —" }]
+            }
           />
           <Select
             label="Revenue / MRR column"

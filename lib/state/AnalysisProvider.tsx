@@ -4,7 +4,19 @@ import { useRouter } from "next/navigation";
 import { createContext, useContext, useMemo, useState } from "react";
 import { analyze } from "../analyze";
 import type { AnalysisResult, ColumnMapping, PipelineStage, RawRow } from "../ml/types";
-import { ProgressOverlay } from "@/components/upload/ProgressOverlay";
+import { ProgressOverlay, STAGES } from "@/components/upload/ProgressOverlay";
+
+const STAGE_ORDER = STAGES.map((s) => s.key);
+// The real pipeline often finishes every stage within milliseconds on small
+// datasets, which would make the progress list flash by unseen. Pace the
+// *displayed* stage on a fixed cadence, capped at whatever has actually
+// happened, so the user can always see the work happen without ever showing
+// a stage before it's really done.
+const MIN_STAGE_MS = 320;
+
+function sleep(ms: number) {
+  return new Promise<void>((resolve) => setTimeout(resolve, ms));
+}
 
 interface AnalysisContextValue {
   rows: RawRow[] | null;
@@ -52,15 +64,36 @@ export function AnalysisProvider({ children }: { children: React.ReactNode }) {
         setDatasetName(name);
         setResultState(null);
         setError(null);
-        setStage("preprocessing");
+
+        let realIndex = 0;
+        let displayIndex = 0;
+        setStage(STAGE_ORDER[0]);
+
+        const ticker = setInterval(() => {
+          if (displayIndex < realIndex) {
+            displayIndex++;
+            setStage(STAGE_ORDER[displayIndex]);
+          }
+        }, MIN_STAGE_MS);
+
         try {
           const r = await analyze(newRows, mapping, {
-            onProgress: (s) => setStage(s),
+            onProgress: (s) => {
+              const idx = STAGE_ORDER.indexOf(s);
+              realIndex = idx >= 0 ? idx : STAGE_ORDER.length - 1;
+            },
           });
+          clearInterval(ticker);
+          while (displayIndex < STAGE_ORDER.length - 1) {
+            await sleep(MIN_STAGE_MS);
+            displayIndex++;
+            setStage(STAGE_ORDER[displayIndex]);
+          }
           setResultState(r);
           setStage(null);
           router.push("/results");
         } catch (e) {
+          clearInterval(ticker);
           setStage(null);
           setError(e instanceof Error ? e.message : "Analysis failed. Please check your data.");
         }

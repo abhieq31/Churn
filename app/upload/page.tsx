@@ -1,24 +1,33 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { buildDefaultMapping, analyzeColumns } from "@/lib/ml/preprocess";
+import { buildDefaultMapping, analyzeColumns, detectRevenueColumn } from "@/lib/ml/preprocess";
 import type { ColumnMapping, RawRow } from "@/lib/ml/types";
 import { useAnalysis } from "@/lib/state/AnalysisProvider";
 import { Dropzone } from "@/components/upload/Dropzone";
 import { ColumnMappingTable } from "@/components/upload/ColumnMappingTable";
 import { Button, Card, Eyebrow } from "@/components/ui/primitives";
 
-function fallbackMapping(rows: RawRow[]): ColumnMapping {
+/**
+ * Used when auto-detection can't confidently find a churn column (e.g. no
+ * column name matches common churn hints and nothing looks like a binary
+ * outcome). Leaves churnColumn blank so the user must choose it explicitly,
+ * rather than silently guessing — a wrong silent guess (e.g. picking "city")
+ * is far more confusing than an honest "we don't know, please tell us."
+ */
+function manualMapping(rows: RawRow[]): ColumnMapping {
   const info = analyzeColumns(rows);
-  const cols = info.map((c) => c.name);
-  const churnColumn = cols[cols.length - 1] ?? "";
-  const first = rows.find((r) => String(r[churnColumn] ?? "").trim() !== "");
+  const idColumn = info.find((c) => c.type === "identifier")?.name ?? null;
+  const revenueColumn = detectRevenueColumn(info);
+  const featureColumns = info
+    .filter((c) => c.type !== "identifier" && c.name !== idColumn)
+    .map((c) => c.name);
   return {
-    churnColumn,
-    churnPositiveValue: first ? String(first[churnColumn]).trim() : "",
-    revenueColumn: null,
-    idColumn: info.find((c) => c.type === "identifier")?.name ?? null,
-    featureColumns: cols.filter((c) => c !== churnColumn),
+    churnColumn: "",
+    churnPositiveValue: "",
+    revenueColumn,
+    idColumn,
+    featureColumns,
   };
 }
 
@@ -26,15 +35,19 @@ export default function UploadPage() {
   const { rows, datasetName, setDataset, runAnalysis, clear, error } = useAnalysis();
   const [mapping, setMapping] = useState<ColumnMapping | null>(null);
   const [seededFor, setSeededFor] = useState<RawRow[] | null>(null);
+  const [autoDetectFailed, setAutoDetectFailed] = useState(false);
 
   // Seed the mapping from auto-detection whenever a new dataset arrives. Done
   // during render (guarded) rather than in an effect, per React guidance.
   if (rows && rows.length > 0 && rows !== seededFor) {
     setSeededFor(rows);
-    setMapping(buildDefaultMapping(rows) ?? fallbackMapping(rows));
+    const detected = buildDefaultMapping(rows);
+    setAutoDetectFailed(!detected);
+    setMapping(detected ?? manualMapping(rows));
   } else if (!rows && seededFor) {
     setSeededFor(null);
     setMapping(null);
+    setAutoDetectFailed(false);
   }
 
   const churnOutcomes = useMemo(() => {
@@ -95,8 +108,22 @@ export default function UploadPage() {
           <Dropzone onParsed={(r, name) => setDataset(r, name)} />
         ) : mapping ? (
           <>
+            {autoDetectFailed && churnOutcomes !== 2 && (
+              <Card className="mb-4 border-amber-200 bg-amber-50 p-4">
+                <p className="text-sm font-medium text-amber-900">
+                  We couldn&apos;t tell which column shows who churned.
+                </p>
+                <p className="mt-1 text-sm text-amber-800">
+                  Nothing in your file is named like a status (e.g. &quot;churn&quot;,
+                  &quot;status&quot;, &quot;active&quot;) or looks like a clean
+                  yes/no outcome. Pick the <strong>Churn column</strong> below yourself — it
+                  should have exactly two values, like &quot;Yes&quot;/&quot;No&quot; or
+                  &quot;Active&quot;/&quot;Cancelled&quot;.
+                </p>
+              </Card>
+            )}
             <ColumnMappingTable rows={rows} mapping={mapping} onChange={setMapping} />
-            {churnOutcomes === 1 && (
+            {!autoDetectFailed && churnOutcomes === 1 && (
               <p className="mt-4 text-sm text-amber-700">
                 The selected churn column / value has only one outcome in your data. Pick the
                 column (and value) that distinguishes churned from retained customers.

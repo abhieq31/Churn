@@ -2,7 +2,7 @@
 
 import type { PipelineStage } from "@/lib/ml/types";
 
-const STAGES: { key: PipelineStage; label: string }[] = [
+export const STAGES: { key: PipelineStage; label: string }[] = [
   { key: "preprocessing", label: "Reading & encoding your data" },
   { key: "balancing-classes", label: "Balancing churned vs retained (SMOTE)" },
   { key: "training-model", label: "Training the gradient-boosted model" },
@@ -14,6 +14,7 @@ const STAGES: { key: PipelineStage; label: string }[] = [
 export function ProgressOverlay({ stage }: { stage: PipelineStage }) {
   const currentIndex = STAGES.findIndex((s) => s.key === stage);
   const activeIndex = stage === "complete" ? STAGES.length : currentIndex;
+  const pct = Math.min(100, Math.round(((activeIndex + 0.5) / STAGES.length) * 100));
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/50 p-4 backdrop-blur-sm">
@@ -28,6 +29,12 @@ export function ProgressOverlay({ stage }: { stage: PipelineStage }) {
         <p className="mt-1 text-sm text-zinc-500">
           Running entirely in your browser. Nothing is uploaded.
         </p>
+        <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-zinc-100">
+          <div
+            className="h-full rounded-full bg-brand-600 transition-[width] duration-300 ease-out"
+            style={{ width: `${pct}%` }}
+          />
+        </div>
         <ol className="mt-5 space-y-3">
           {STAGES.map((s, i) => {
             const done = i < activeIndex;
