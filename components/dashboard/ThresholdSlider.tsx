@@ -59,7 +59,7 @@ export function ThresholdSlider({
       {/* precision / recall curves with a marker at the current threshold */}
       <svg viewBox={`0 0 ${W} ${H}`} className="mt-4 h-32 w-full" preserveAspectRatio="none">
         <line x1="0" y1={H} x2={W} y2={H} stroke="#e4e4e7" strokeWidth="1" />
-        <path d={path(sweep, (p) => p.precision)} fill="none" stroke="#7c5cff" strokeWidth="2" />
+        <path d={path(sweep, (p) => p.precision)} fill="none" stroke="#d0441f" strokeWidth="2" />
         <path d={path(sweep, (p) => p.recall)} fill="none" stroke="#e11d48" strokeWidth="2" />
         <path d={path(sweep, (p) => p.f1)} fill="none" stroke="#059669" strokeWidth="1.5" strokeDasharray="4 3" />
         <line x1={value * W} y1="0" x2={value * W} y2={H} stroke="#18181b" strokeWidth="1.5" strokeDasharray="3 3" />

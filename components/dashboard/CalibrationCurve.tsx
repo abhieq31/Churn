@@ -33,9 +33,9 @@ export function CalibrationCurve({ calibration }: { calibration: CalibrationSumm
           <rect x="0" y="0" width={S} height={S} fill="#fafafa" rx="8" />
           {/* perfect-calibration diagonal */}
           <line x1="0" y1={S} x2={S} y2="0" stroke="#d4d4d8" strokeWidth="1" strokeDasharray="4 4" />
-          <path d={line} fill="none" stroke="#7c5cff" strokeWidth="2" />
+          <path d={line} fill="none" stroke="#d0441f" strokeWidth="2" />
           {pts.map((p, i) => (
-            <circle key={i} cx={p.x} cy={p.y} r="3.5" fill="#7c5cff" />
+            <circle key={i} cx={p.x} cy={p.y} r="3.5" fill="#d0441f" />
           ))}
         </svg>
 

@@ -108,10 +108,50 @@ body {
   }
 }
 
+/* ── Loading scenes: each pipeline stage gets its own little informatic animation ── */
+@keyframes ld-cell {
+  0%, 100% { opacity: 0.1; }
+  50% { opacity: 1; }
+}
+@keyframes ld-draw {
+  from { stroke-dashoffset: var(--len, 400); }
+  to { stroke-dashoffset: 0; }
+}
+@keyframes ld-sprout {
+  0% { opacity: 0; transform: translateY(9px) scale(0.5); }
+  55% { opacity: 1; }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes ld-flow {
+  0% { transform: translateX(0); opacity: 0; }
+  12% { opacity: 1; }
+  88% { opacity: 1; }
+  100% { transform: translateX(232px); opacity: 0; }
+}
+@keyframes ld-growx {
+  0% { transform: scaleX(0); }
+  70%, 100% { transform: scaleX(1); }
+}
+@keyframes ld-slide {
+  0%, 100% { transform: translateX(6px); }
+  50% { transform: translateX(214px); }
+}
+@keyframes ld-soft {
+  0%, 100% { opacity: 0.35; }
+  50% { opacity: 1; }
+}
+@keyframes ld-pop {
+  0% { opacity: 0; transform: scale(0.4); }
+  60% { opacity: 1; transform: scale(1.12); }
+  100% { opacity: 1; transform: scale(1); }
+}
+.ld-scene { animation: fade-up 0.45s cubic-bezier(0.16, 1, 0.3, 1) both; }
+
 @media (prefers-reduced-motion: reduce) {
   .animate-fade-up,
-  .animate-rise {
-    animation: none;
+  .animate-rise,
+  .ld-scene * {
+    animation: none !important;
   }
   html {
     scroll-behavior: auto;
