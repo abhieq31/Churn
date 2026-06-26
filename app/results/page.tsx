@@ -134,7 +134,7 @@ export default function ResultsPage() {
                 <p className="text-xs font-medium uppercase tracking-[0.2em] text-brand-400">
                   Do this first
                 </p>
-                <p className="mt-4 text-2xl font-semibold leading-snug tracking-tight text-paper">
+                <p className="mt-4 text-2xl font-semibold leading-snug tracking-tight text-brand-400">
                   {topAction.body}
                 </p>
               </div>
