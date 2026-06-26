@@ -66,6 +66,48 @@ export interface ColumnImportance {
   importance: number;
 }
 
+/** One feature's exact SHAP push on a single customer's risk (log-odds scale). */
+export interface ShapContribution {
+  column: string;
+  /** The customer's value for this column, for display. */
+  value: string;
+  /** Signed contribution to the log-odds margin; >0 pushes churn up. */
+  contribution: number;
+  direction: "increases" | "decreases";
+}
+
+/** One bin of a reliability diagram: mean predicted vs observed churn rate. */
+export interface CalibrationBin {
+  pred: number;
+  obs: number;
+  count: number;
+}
+
+/** Precision / recall / F1 / flagged-count at one decision threshold. */
+export interface ThresholdPoint {
+  threshold: number;
+  precision: number;
+  recall: number;
+  f1: number;
+  flagged: number;
+}
+
+/** Cross-validated ROC-AUC (mean ± std), SMOTE fit strictly inside each fold. */
+export interface CvScore {
+  mean: number;
+  std: number;
+  folds: number;
+  perFold: number[];
+}
+
+/** Probability-calibration summary (Platt vs isotonic, chosen by Brier). */
+export interface CalibrationSummary {
+  method: "platt" | "isotonic";
+  brier: number;
+  comparison: { platt: number; isotonic: number };
+  curve: CalibrationBin[];
+}
+
 /** A single plain-English reason a specific customer is flagged at risk. */
 export interface RiskReason {
   column: string;
@@ -89,6 +131,8 @@ export interface AtRiskCustomer {
   revenue: number | null;
   /** Ranked reasons this customer is at risk (most notable first). */
   reasons: RiskReason[];
+  /** Exact per-feature SHAP contributions (which features pushed risk up/down). */
+  shap: ShapContribution[];
 }
 
 export interface Recommendation {
@@ -119,7 +163,13 @@ export interface AnalysisSummary {
   modelPrecision: number;
   modelRecall: number;
   modelF1: number;
+  /** Held-out (test-set) ROC-AUC. */
   modelAuc: number;
+  /** Cross-validated ROC-AUC mean — the honest headline number. */
+  cvAucMean: number;
+  cvAucStd: number;
+  /** Brier score of the calibrated probabilities (lower = better calibrated). */
+  brier: number;
   /** Which model was automatically selected (e.g. "Gradient Boosting"). */
   modelName: string;
 }
@@ -133,6 +183,16 @@ export interface AnalysisResult {
   mapping: ColumnMapping;
   /** Decision threshold used to flag a customer as at-risk. */
   threshold: number;
+  /** Cross-validated ROC-AUC (mean ± std), SMOTE fit only inside each fold. */
+  cvAuc: CvScore;
+  /** Probability calibration (Platt vs isotonic) + reliability curve. */
+  calibration: CalibrationSummary;
+  /** Precision/recall/F1/flagged across thresholds (held-out test set). */
+  thresholdSweep: ThresholdPoint[];
+  /** Calibrated probability for every still-active customer (powers the slider). */
+  activeProbabilities: number[];
+  /** Revenue per active customer, aligned to activeProbabilities (null if no revenue column). */
+  activeRevenue: number[] | null;
   generatedAt: string;
 }
 
@@ -147,8 +207,10 @@ export interface ChurnModel {
 
 export type PipelineStage =
   | "preprocessing"
+  | "cross-validating"
   | "balancing-classes"
   | "training-model"
+  | "calibrating"
   | "evaluating"
   | "scoring-customers"
   | "generating-explanations"

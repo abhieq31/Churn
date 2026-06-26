@@ -385,4 +385,24 @@ export function stratifiedSplit(labels: number[], testFraction: number, rng: Rng
   return { trainIdx, testIdx };
 }
 
+/**
+ * Stratified k-fold assignment. Returns one index array per fold, each keeping
+ * the dataset's class balance — so SMOTE can be fit strictly inside each fold's
+ * training rows (the leakage fix) and ROC-AUC reported across folds.
+ */
+export function stratifiedFolds(labels: number[], k: number, rng: Rng): number[][] {
+  const folds: number[][] = Array.from({ length: k }, () => []);
+  const byClass = new Map<number, number[]>();
+  labels.forEach((y, i) => {
+    if (!byClass.has(y)) byClass.set(y, []);
+    byClass.get(y)!.push(i);
+  });
+  for (const idxs of byClass.values()) {
+    rng.shuffle(idxs);
+    idxs.forEach((idx, j) => folds[j % k].push(idx));
+  }
+  for (const f of folds) rng.shuffle(f);
+  return folds;
+}
+
 export { MISSING, isMissing, boolToNum };

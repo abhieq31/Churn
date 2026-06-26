@@ -16,6 +16,7 @@ import type {
   RawRow,
   Recommendation,
   RiskReason,
+  ShapContribution,
 } from "./types";
 
 const TRUE_TOKENS = new Set(["yes", "true", "1", "y", "t"]);
@@ -145,6 +146,7 @@ export function explainCustomer(
   mapping: ColumnMapping,
   baselines: Baselines,
   rankedColumns: ColumnImportance[],
+  shap: ShapContribution[] = [],
 ): AtRiskCustomer {
   const candidates: RiskReason[] = [];
   // Look at the most important columns (cap to keep reasons focused).
@@ -228,6 +230,7 @@ export function explainCustomer(
     probability,
     revenue: Number.isNaN(revenue) ? null : revenue,
     reasons,
+    shap,
   };
 }
 

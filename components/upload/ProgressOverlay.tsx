@@ -4,11 +4,12 @@ import type { PipelineStage } from "@/lib/ml/types";
 
 export const STAGES: { key: PipelineStage; label: string }[] = [
   { key: "preprocessing", label: "Reading & encoding your data" },
-  { key: "balancing-classes", label: "Balancing churned vs retained (SMOTE)" },
-  { key: "training-model", label: "Training the gradient-boosted model" },
-  { key: "evaluating", label: "Measuring accuracy on held-out data" },
+  { key: "cross-validating", label: "Cross-validating (SMOTE inside each fold)" },
+  { key: "calibrating", label: "Calibrating probabilities (Platt vs isotonic)" },
+  { key: "training-model", label: "Training the final gradient-boosted model" },
+  { key: "evaluating", label: "Measuring AUC, Brier & threshold sweep" },
   { key: "scoring-customers", label: "Scoring your active customers" },
-  { key: "generating-explanations", label: "Writing explanations & recommendations" },
+  { key: "generating-explanations", label: "Computing SHAP & recommendations" },
 ];
 
 export function ProgressOverlay({ stage }: { stage: PipelineStage }) {

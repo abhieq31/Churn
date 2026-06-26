@@ -1,0 +1,13 @@
+# Research factory + serving. Core deps are all that the build/parity/serve
+# paths require. `shap` is an OPTIONAL cross-check of our in-repo exact
+# TreeSHAP (see treeshap.py); the build never depends on it being present.
+numpy>=1.26
+pandas>=2.0
+scipy>=1.11
+scikit-learn==1.9.0
+imbalanced-learn>=0.13
+joblib>=1.3
+fastapi>=0.115
+uvicorn>=0.30
+pydantic>=2.0
+pytest>=8.0

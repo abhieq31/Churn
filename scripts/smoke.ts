@@ -43,12 +43,18 @@ const result = runPipeline(rows, mapping, {
 console.log(`  pipeline took ${Date.now() - tPipe}ms`);
 
 console.log("\n=== Model metrics (held-out test set) ===");
-console.log(`Selected:  ${result.summary.modelName} (threshold ${result.threshold})`);
+console.log(`Selected:  ${result.summary.modelName} (threshold ${result.threshold.toFixed(2)})`);
+console.log(
+  `CV ROC-AUC: ${result.cvAuc.mean.toFixed(3)} ± ${result.cvAuc.std.toFixed(3)} (${result.cvAuc.folds}-fold, SMOTE in-fold)`,
+);
+console.log(`Holdout AUC: ${result.summary.modelAuc.toFixed(3)}`);
+console.log(
+  `Calibration: ${result.calibration.method} (Brier ${result.calibration.brier.toFixed(4)}; platt ${result.calibration.comparison.platt.toFixed(4)} vs iso ${result.calibration.comparison.isotonic.toFixed(4)})`,
+);
 console.log(`Accuracy:  ${pct(result.summary.modelAccuracy)}`);
 console.log(`Precision: ${pct(result.summary.modelPrecision)}`);
 console.log(`Recall:    ${pct(result.summary.modelRecall)}`);
 console.log(`F1:        ${pct(result.summary.modelF1)}`);
-console.log(`AUC:       ${result.summary.modelAuc.toFixed(3)}`);
 console.log(`Confusion: ${JSON.stringify(result.metrics.confusion)}`);
 
 console.log("\n=== Top global importance ===");
@@ -57,7 +63,10 @@ result.globalImportance.slice(0, 6).forEach((c) => console.log(`  ${c.column}: $
 console.log(`\n=== At-risk customers: ${result.summary.atRiskCount} ===`);
 result.atRiskCustomers.slice(0, 3).forEach((c) => {
   console.log(`\n  ${c.label} — churn probability ${pct(c.probability)}`);
-  c.reasons.forEach((r) => console.log(`    • ${r.text}`));
+  console.log("    SHAP (risk up/down):");
+  c.shap.slice(0, 4).forEach((s) =>
+    console.log(`      ${s.direction === "increases" ? "▲" : "▼"} ${s.column} (${s.value}) ${s.contribution >= 0 ? "+" : ""}${s.contribution.toFixed(3)}`),
+  );
 });
 
 console.log(`\n=== Recommendations: ${result.recommendations.length} ===`);

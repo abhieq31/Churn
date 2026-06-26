@@ -1,13 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { formatCurrency } from "@/lib/ml/explain";
 import { useAnalysis } from "@/lib/state/AnalysisProvider";
 import { SummaryStats } from "@/components/dashboard/SummaryStats";
 import { RecommendationsPanel } from "@/components/dashboard/RecommendationsPanel";
 import { AtRiskTable } from "@/components/dashboard/AtRiskTable";
 import { MetricsPanel } from "@/components/dashboard/MetricsPanel";
+import { ThresholdSlider } from "@/components/dashboard/ThresholdSlider";
+import { CalibrationCurve } from "@/components/dashboard/CalibrationCurve";
 import { ImportanceChart } from "@/components/dashboard/ImportanceChart";
 import { SaveAnalysis } from "@/components/dashboard/SaveAnalysis";
 import { Badge, Card, Eyebrow, LinkButton } from "@/components/ui/primitives";
@@ -15,6 +17,23 @@ import { Badge, Card, Eyebrow, LinkButton } from "@/components/ui/primitives";
 export default function ResultsPage() {
   const { result, rows, datasetName } = useAnalysis();
   const [activeTag, setActiveTag] = useState<string | null>(null);
+  const [threshold, setThreshold] = useState<number | null>(null);
+
+  const effectiveThreshold = threshold ?? result?.threshold ?? 0.5;
+  const live = useMemo(() => {
+    if (!result) return { atRiskCount: 0, revenueAtRisk: null as number | null };
+    const probs = result.activeProbabilities;
+    const revs = result.activeRevenue;
+    let count = 0;
+    let rev = 0;
+    for (let i = 0; i < probs.length; i++) {
+      if (probs[i] >= effectiveThreshold) {
+        count++;
+        if (revs) rev += revs[i];
+      }
+    }
+    return { atRiskCount: count, revenueAtRisk: revs ? rev : null };
+  }, [result, effectiveThreshold]);
 
   if (!result || !rows) {
     return (
@@ -37,7 +56,9 @@ export default function ResultsPage() {
 
   const s = result.summary;
   const activeCount = s.totalCustomers - s.historicalChurnCount;
-  const pctActive = activeCount > 0 ? (s.atRiskCount / activeCount) * 100 : 0;
+  const atRiskCount = live.atRiskCount;
+  const revenueAtRisk = live.revenueAtRisk;
+  const pctActive = activeCount > 0 ? (atRiskCount / activeCount) * 100 : 0;
   const factors = result.globalImportance.slice(0, 2).map((g) => g.column);
   const topAction = result.recommendations[0];
 
@@ -51,7 +72,7 @@ export default function ResultsPage() {
             Analysis complete
           </Badge>
           <Badge tone="zinc">
-            {s.modelName} · AUC {s.modelAuc.toFixed(2)}
+            {s.modelName} · CV AUC {s.cvAucMean.toFixed(3)} ± {s.cvAucStd.toFixed(3)}
           </Badge>
         </div>
         <div className="flex items-center gap-2">
@@ -68,9 +89,9 @@ export default function ResultsPage() {
       {/* The one clear insight */}
       <div className="animate-fade-up mt-8">
         <Eyebrow>{datasetName ?? "Your dataset"}</Eyebrow>
-        {s.atRiskCount > 0 ? (
+        {atRiskCount > 0 ? (
           <h1 className="display mt-4 max-w-4xl text-4xl font-semibold text-ink sm:text-5xl">
-            <span className="text-brand-600">{s.atRiskCount.toLocaleString()}</span> of your{" "}
+            <span className="text-brand-600">{atRiskCount.toLocaleString()}</span> of your{" "}
             {activeCount.toLocaleString()} active customers are{" "}
             <span className="serif-accent">likely to churn.</span>
           </h1>
@@ -81,10 +102,10 @@ export default function ResultsPage() {
         )}
         <p className="mt-5 max-w-2xl text-lg leading-relaxed text-ink/55">
           That&apos;s {pctActive.toFixed(1)}% of your active base
-          {s.revenueAtRisk != null && s.revenueAtRisk > 0 ? (
+          {revenueAtRisk != null && revenueAtRisk > 0 ? (
             <>
               , putting{" "}
-              <span className="font-medium text-ink">{formatCurrency(s.revenueAtRisk)}/mo</span> of
+              <span className="font-medium text-ink">{formatCurrency(revenueAtRisk)}/mo</span> of
               revenue on the line
             </>
           ) : null}
@@ -101,7 +122,7 @@ export default function ResultsPage() {
 
       {/* Stats */}
       <div className="mt-10">
-        <SummaryStats result={result} />
+        <SummaryStats result={result} atRiskCount={atRiskCount} revenueAtRisk={revenueAtRisk} />
       </div>
 
       {/* Do this first */}
@@ -137,18 +158,30 @@ export default function ResultsPage() {
         />
       </div>
 
+      {/* Decision threshold — tune precision/recall live */}
+      <div className="animate-fade-up mt-12">
+        <ThresholdSlider
+          sweep={result.thresholdSweep}
+          value={effectiveThreshold}
+          onChange={setThreshold}
+          flagged={atRiskCount}
+          totalActive={activeCount}
+        />
+      </div>
+
       {/* Table + importance */}
       <div className="animate-fade-up mt-12 grid gap-6 lg:grid-cols-3">
         <div className="lg:col-span-2">
-          <AtRiskTable result={result} rows={rows} activeTag={activeTag} />
+          <AtRiskTable result={result} rows={rows} activeTag={activeTag} threshold={effectiveThreshold} />
         </div>
         <div className="lg:col-span-1">
           <ImportanceChart importance={result.globalImportance} />
         </div>
       </div>
 
-      {/* Metrics */}
-      <div className="mt-6">
+      {/* Calibration + metrics */}
+      <div className="animate-fade-up mt-6 grid gap-6 lg:grid-cols-2">
+        <CalibrationCurve calibration={result.calibration} />
         <MetricsPanel result={result} />
       </div>
     </div>

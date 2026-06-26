@@ -35,23 +35,34 @@ function Stat({
   );
 }
 
-export function SummaryStats({ result }: { result: AnalysisResult }) {
+export function SummaryStats({
+  result,
+  atRiskCount,
+  revenueAtRisk,
+}: {
+  result: AnalysisResult;
+  /** Live override as the threshold slider moves (defaults to the summary values). */
+  atRiskCount?: number;
+  revenueAtRisk?: number | null;
+}) {
   const s = result.summary;
   const activeCount = s.totalCustomers - s.historicalChurnCount;
+  const liveAtRisk = atRiskCount ?? s.atRiskCount;
+  const liveRevenue = revenueAtRisk !== undefined ? revenueAtRisk : s.revenueAtRisk;
   return (
     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
       <Stat
         label="At-risk customers"
-        value={s.atRiskCount}
+        value={liveAtRisk}
         format={(n) => Math.round(n).toLocaleString()}
         sub={`of ${activeCount.toLocaleString()} active customers`}
         tone="rose"
       />
       <Stat
         label="Revenue at risk"
-        value={s.revenueAtRisk ?? 0}
-        format={(n) => (s.revenueAtRisk != null ? `${formatCurrency(n)}/mo` : "—")}
-        sub={s.revenueAtRisk != null ? "from at-risk customers" : "no revenue column mapped"}
+        value={liveRevenue ?? 0}
+        format={(n) => (liveRevenue != null ? `${formatCurrency(n)}/mo` : "—")}
+        sub={liveRevenue != null ? "from at-risk customers" : "no revenue column mapped"}
         tone="rose"
         delay={80}
       />
@@ -63,10 +74,10 @@ export function SummaryStats({ result }: { result: AnalysisResult }) {
         delay={160}
       />
       <Stat
-        label="Model quality (F1)"
-        value={s.modelF1 * 100}
-        format={(n) => `${n.toFixed(0)}%`}
-        sub={`${(s.modelAccuracy * 100).toFixed(0)}% accuracy · AUC ${s.modelAuc.toFixed(2)}`}
+        label="Model quality (CV ROC-AUC)"
+        value={s.cvAucMean}
+        format={(n) => n.toFixed(3)}
+        sub={`±${s.cvAucStd.toFixed(3)} across folds · Brier ${s.brier.toFixed(3)}`}
         tone="emerald"
         delay={240}
       />

@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { atRiskToCsv, downloadText } from "@/lib/csv";
 import { formatCurrency } from "@/lib/ml/explain";
-import type { AnalysisResult, RawRow } from "@/lib/ml/types";
+import type { AnalysisResult, RawRow, ShapContribution } from "@/lib/ml/types";
 import { Badge, Button, Card } from "@/components/ui/primitives";
 
 function RiskBadge({ p }: { p: number }) {
@@ -11,21 +11,55 @@ function RiskBadge({ p }: { p: number }) {
   return <Badge tone={tone}>{(p * 100).toFixed(0)}%</Badge>;
 }
 
+/** Diverging SHAP bars: which features pushed THIS customer's risk up / down. */
+function ShapBars({ shap }: { shap: ShapContribution[] }) {
+  const top = shap.slice(0, 6);
+  const max = Math.max(...top.map((s) => Math.abs(s.contribution)), 1e-6);
+  return (
+    <div className="space-y-1.5">
+      {top.map((s) => {
+        const w = (Math.abs(s.contribution) / max) * 50; // % of half-width
+        const up = s.contribution >= 0;
+        return (
+          <div key={s.column} className="flex items-center gap-2 text-sm">
+            <span className="w-40 shrink-0 truncate text-right text-zinc-600" title={`${s.column} = ${s.value}`}>
+              {s.column}
+            </span>
+            <span className="relative flex h-4 flex-1 items-center">
+              <span className="absolute left-1/2 top-0 h-4 w-px bg-zinc-300" />
+              <span
+                className={`absolute h-3 rounded-sm ${up ? "bg-rose-400" : "bg-emerald-400"}`}
+                style={up ? { left: "50%", width: `${w}%` } : { right: "50%", width: `${w}%` }}
+              />
+            </span>
+            <span className={`w-12 shrink-0 text-xs font-medium ${up ? "text-rose-600" : "text-emerald-600"}`}>
+              {up ? "+" : ""}
+              {s.contribution.toFixed(2)}
+            </span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 export function AtRiskTable({
   result,
   rows,
   activeTag,
+  threshold,
 }: {
   result: AnalysisResult;
   rows: RawRow[];
   activeTag: string | null;
+  threshold: number;
 }) {
   const [query, setQuery] = useState("");
   const [expanded, setExpanded] = useState<number | null>(null);
   const [limit, setLimit] = useState(25);
 
   const filtered = useMemo(() => {
-    let list = result.atRiskCustomers;
+    let list = result.atRiskCustomers.filter((c) => c.probability >= threshold);
     if (activeTag) list = list.filter((c) => c.reasons[0]?.tag === activeTag);
     if (query.trim()) {
       const q = query.toLowerCase();
@@ -36,7 +70,7 @@ export function AtRiskTable({
       );
     }
     return list;
-  }, [result.atRiskCustomers, activeTag, query]);
+  }, [result.atRiskCustomers, activeTag, query, threshold]);
 
   const visible = filtered.slice(0, limit);
   const hasRevenue = result.mapping.revenueColumn != null;
@@ -109,8 +143,22 @@ export function AtRiskTable({
                 </button>
                 {open && (
                   <div className="bg-zinc-50/70 px-5 pb-5 pl-16">
-                    <p className="pt-1 text-xs font-medium uppercase tracking-wide text-zinc-400">
-                      Why this customer is at risk
+                    {c.shap.length > 0 && (
+                      <>
+                        <p className="pt-1 text-xs font-medium uppercase tracking-wide text-zinc-400">
+                          What moved this prediction (SHAP, log-odds)
+                        </p>
+                        <div className="mt-2 max-w-md">
+                          <div className="mb-1 flex justify-between text-[11px] text-zinc-400">
+                            <span>← lowers risk</span>
+                            <span>raises risk →</span>
+                          </div>
+                          <ShapBars shap={c.shap} />
+                        </div>
+                      </>
+                    )}
+                    <p className="pt-4 text-xs font-medium uppercase tracking-wide text-zinc-400">
+                      In plain language
                     </p>
                     <ul className="mt-2 space-y-1.5">
                       {c.reasons.map((r, i) => (

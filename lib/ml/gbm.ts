@@ -8,6 +8,7 @@
 // and leaf weight w = -G / (H + λ).
 
 import { Rng } from "./random";
+import { ensembleShap, type ShapTree } from "./treeshap";
 import type { ChurnModel } from "./types";
 
 export interface GBMOptions {
@@ -39,8 +40,8 @@ function sigmoid(x: number): number {
 }
 
 type GNode =
-  | { kind: "leaf"; weight: number }
-  | { kind: "split"; feature: number; threshold: number; left: GNode; right: GNode };
+  | { kind: "leaf"; weight: number; cover: number }
+  | { kind: "split"; feature: number; threshold: number; left: GNode; right: GNode; cover: number };
 
 interface Best {
   feature: number;
@@ -105,8 +106,9 @@ export class GradientBoosting implements ChurnModel {
     depth: number,
     rng: Rng,
   ): GNode {
+    const cover = idx.length;
     if (depth >= this.opts.maxDepth || idx.length < 2) {
-      return { kind: "leaf", weight: this.leafWeight(g, h, idx) };
+      return { kind: "leaf", weight: this.leafWeight(g, h, idx), cover };
     }
 
     let G = 0;
@@ -146,7 +148,7 @@ export class GradientBoosting implements ChurnModel {
     }
 
     if (best === null || best.gain <= 1e-9) {
-      return { kind: "leaf", weight: this.leafWeight(g, h, idx) };
+      return { kind: "leaf", weight: this.leafWeight(g, h, idx), cover };
     }
 
     this.rawImportance[best.feature] += best.gain;
@@ -161,6 +163,7 @@ export class GradientBoosting implements ChurnModel {
       kind: "split",
       feature: best.feature,
       threshold: best.threshold,
+      cover,
       left: this.buildTree(X, g, h, leftIdx, depth + 1, rng),
       right: this.buildTree(X, g, h, rightIdx, depth + 1, rng),
     };
@@ -174,19 +177,87 @@ export class GradientBoosting implements ChurnModel {
     return n.weight;
   }
 
-  predictProba(x: number[]): number {
+  /** Raw log-odds margin before the sigmoid — the scale SHAP explains. */
+  predictMargin(x: number[]): number {
     let F = this.base;
     for (const tree of this.trees) F += this.opts.learningRate * this.evalTree(tree, x);
-    return sigmoid(F);
+    return F;
+  }
+
+  predictProba(x: number[]): number {
+    return sigmoid(this.predictMargin(x));
   }
 
   predictProbaBatch(X: number[][]): number[] {
     return X.map((x) => this.predictProba(x));
   }
 
+  /**
+   * Exact TreeSHAP contributions on the log-odds scale (one per feature),
+   * computed by the same algorithm as the Python `shap` package. base + Σ ==
+   * margin(x). See lib/ml/treeshap.ts.
+   */
+  shapValues(x: number[]): number[] {
+    if (!this.shapTrees) this.shapTrees = this.trees.map((t) => flattenTree(t));
+    return ensembleShap(this.shapTrees, x, this.nFeatures, this.opts.learningRate);
+  }
+
+  /**
+   * SHAP expected value = the model's mean margin over the training
+   * distribution (init + lr·Σ E[tree]). baseValue + Σshap == margin(x) exactly,
+   * and sigmoid(baseValue) is the model's base-rate probability.
+   */
+  shapBaseValue(): number {
+    if (!this.shapTrees) this.shapTrees = this.trees.map((t) => flattenTree(t));
+    let e = this.base;
+    for (const t of this.shapTrees) {
+      const root = t.cover[0];
+      let te = 0;
+      for (let i = 0; i < t.childrenLeft.length; i++) {
+        if (t.childrenLeft[i] === -1) te += (t.cover[i] / root) * t.value[i];
+      }
+      e += this.opts.learningRate * te;
+    }
+    return e;
+  }
+
+  private shapTrees: ShapTree[] | null = null;
+
   featureImportances(): number[] {
     const total = this.rawImportance.reduce((a, b) => a + b, 0);
     if (total === 0) return this.rawImportance.map(() => 0);
     return this.rawImportance.map((v) => v / total);
   }
+}
+
+/** Recursive GNode tree -> scikit-learn-style flat arrays for TreeSHAP. */
+function flattenTree(root: GNode): ShapTree {
+  const childrenLeft: number[] = [];
+  const childrenRight: number[] = [];
+  const feature: number[] = [];
+  const threshold: number[] = [];
+  const value: number[] = [];
+  const cover: number[] = [];
+
+  const visit = (node: GNode): number => {
+    const id = childrenLeft.length;
+    childrenLeft.push(-1);
+    childrenRight.push(-1);
+    feature.push(-1);
+    threshold.push(0);
+    value.push(0);
+    cover.push(node.cover);
+    if (node.kind === "leaf") {
+      value[id] = node.weight;
+    } else {
+      feature[id] = node.feature;
+      threshold[id] = node.threshold;
+      childrenLeft[id] = visit(node.left);
+      childrenRight[id] = visit(node.right);
+    }
+    return id;
+  };
+
+  visit(root);
+  return { childrenLeft, childrenRight, feature, threshold, value, cover };
 }
